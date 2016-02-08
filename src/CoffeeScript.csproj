@@ -9,7 +9,7 @@
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <RootNamespace>CoffeeScript</RootNamespace>
     <AssemblyName>CoffeeScript</AssemblyName>
-    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.0</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <TargetFrameworkProfile />
   </PropertyGroup>
@@ -31,6 +31,13 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="ClearScript, Version=5.3.11.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\..\..\wp\ms40\packages\ClearScript.V8\lib\net40\ClearScript.dll</HintPath>
+    </Reference>
+    <Reference Include="nunit.framework">
+      <HintPath>..\..\..\wp\ms40\packages\NUnit\lib\net40\nunit.framework.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.configuration" />
     <Reference Include="System.Core" />
@@ -39,13 +46,33 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="ICoffee2Js.cs" />
     <Compile Include="Loader.cs" />
     <Compile Include="CoffeeScriptHttpHandler.cs" />
     <Compile Include="CScriptEngine.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="V8Compiler.cs" />
+    <Compile Include="V8EngineTest.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="coffee-script.js" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="paket.references" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="ClearScriptV8-32.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="ClearScriptV8-64.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="v8-ia32.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="v8-x64.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 

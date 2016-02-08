@@ -9,13 +9,19 @@ using System.Text.RegularExpressions;
 
 namespace CoffeeScript
 {
-    public class CScriptEngine
+    public class CScriptEngine : ICoffee2Js
     {
         public CScriptEngine(string coffeScript)
         {
             ExePath = @"c:\Windows\System32\cscript.exe";
             CoffeeScript = coffeScript;
             InjectVersion = true;
+
+            var exepath = CoffeeScriptHttpHandler.GetConfig("coffee-script.cscriptPath", null);
+            if (exepath != null)
+                ExePath = exepath;
+
+            InjectVersion = CoffeeScriptHttpHandler.GetConfig("coffee-script.injectVersion", true);
         }
 
         public string CoffeeScript { get; private set; }
@@ -40,13 +46,17 @@ namespace CoffeeScript
             }
         }
 
-        public string Compile(string scriptPath)
+        public CompileResult Compile(string scriptPath)
         {
             var writer = new StringWriter();
             writer.Write(CoffeeScript);
             writer.WriteLine();
             writer.WriteLine();
             writer.Write(@"
+
+function printDebug(str) {
+    WScript.Echo('/**\n  ' + str + '\n**/');
+}
 
 function loadFile(scriptPath) {
     // use adodb.stream to handle utf-8 files. 
@@ -62,17 +72,17 @@ function loadFile(scriptPath) {
 }
 
 function compileFile(scriptPath) {
-    try{
-        return CoffeeScript.compile(loadFile(scriptPath), {no_wrap: true});
-    }catch(err){
-        return err;
-    }
-    return result;
+    var code = loadFile(scriptPath);
+    //printDebug('loadFile script=' + scriptPath);
+    //printDebug(code);
+ 
+    return CoffeeScript.compile(code, {no_wrap: true});
 }
 
 if (<inject-version>){
     WScript.Echo(
         '/**'
+    + '\n * CoffeeScript-Handler: <coffeescript-handler-version>'
     + '\n * CoffeeScript Compiler: ' + CoffeeScript.VERSION 
     + '\n * Compiled at: ' + new Date() 
     + '\n */');
@@ -81,34 +91,36 @@ if (<inject-version>){
 WScript.Echo(compileFile('<script-path>'));
 ".Replace("<script-path>", scriptPath.Replace("\\", "/"))
  .Replace("<inject-version>", InjectVersion.ToString().ToLowerInvariant())
+ .Replace("<coffeescript-handler-version>", FileVersionInfo.GetVersionInfo(GetType().Assembly.Location).FileVersion)
  );
             writer.WriteLine();
 
             return RunEngine(writer.ToString());
         }
 
-        private string RunEngine(string code)
+        private CompileResult RunEngine(string code)
         {
             using (var tmpFile = new TmpJsFile())
             {
-                File.AppendAllText(tmpFile.FilePath, code);
+                File.WriteAllText(tmpFile.FilePath, code);
 
                 var cmd = string.Format("\"{0}\" //NoLogo", tmpFile.FilePath);
                 var info = new ProcessStartInfo(ExePath, cmd);
                 info.UseShellExecute = false;
                 info.RedirectStandardOutput = true;
+                info.RedirectStandardError = true;
                 using (var process = Process.Start(info))
                 {
                     var stdOut = process.StandardOutput.ReadToEnd();
+                    var stdErr = process.StandardError.ReadToEnd();
                     process.WaitForExit();
 
-                    return stdOut;
+                    return (!string.IsNullOrEmpty(stdErr))
+                        ? new CompileResult {Ok = false, Value = stdOut + stdErr}
+                        : new CompileResult {Ok = true, Value = stdOut};
                 }
             }
         }
-
-
-
 
         class TmpJsFile : IDisposable
         {
@@ -126,7 +138,5 @@ WScript.Echo(compileFile('<script-path>'));
                 File.Delete(FilePath);
             }
         }
-
-       
     }
 }

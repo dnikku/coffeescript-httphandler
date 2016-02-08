@@ -1,7 +1,6 @@
-﻿using System;
+﻿using System.Globalization;
+using System.IO;
 using System.Web;
-using System.Web.Caching;
-using CoffeeScript;
 using System.Configuration;
 
 namespace CoffeeScript
@@ -15,43 +14,44 @@ namespace CoffeeScript
     /// </summary>
     public class CoffeeScriptHttpHandler : IHttpHandler
     {
-        private bool _enableCache;
-        CScriptEngine _engine;
+        private readonly bool _enableCache;
+        readonly ICoffee2Js _engine;
         public CoffeeScriptHttpHandler()
         {
-            var _scriptPath = GetConfig("coffee-script.path", null);
-            _engine = new CScriptEngine(_scriptPath != null 
-                ? Loader.FromFile(_scriptPath) : Loader.Default());
-            
-            var exepath = GetConfig("coffee-script.cscriptPath", null);
-            if (exepath != null)
-                _engine.ExePath = exepath;
-
-            _engine.InjectVersion = GetConfig("coffee-script.injectVersion", true);
+            _engine = new V8Compiler(GetCoffeeScript());
 
             _enableCache = GetConfig("coffee-script.enableCache", true);
         }
 
         public void ProcessRequest(HttpContext context)
         {
-            var jscript = _engine.Compile(context.Request.PhysicalPath);
+            var coffeescriptFile = context.Request.PhysicalPath;
+            var cachejsFile = coffeescriptFile + ".jscoffee";
 
-            context.Response.AddFileDependency(context.Request.PhysicalPath);
-            var cache = context.Response.Cache;
-            if (_enableCache)
+            context.Response.Cache.SetCacheability(HttpCacheability.NoCache);
+            context.Response.ContentType = "application/javascript";
+  
+            if (_enableCache &&
+                File.Exists(cachejsFile) && new FileInfo(cachejsFile).LastWriteTimeUtc == new FileInfo(coffeescriptFile).LastWriteTimeUtc)
             {
-                cache.SetCacheability(HttpCacheability.Public);
-                cache.SetValidUntilExpires(true);
-                cache.SetLastModifiedFromFileDependencies();
-                cache.SetETagFromFileDependencies();
+                var jscript = File.ReadAllText(cachejsFile);
+                context.Response.Write(jscript);
             }
             else
             {
-                cache.SetCacheability(HttpCacheability.NoCache);
+                var jscript = _engine.Compile(coffeescriptFile);
+                if (jscript.Ok)
+                {
+                    context.Response.Write(jscript.Value);
+                    File.WriteAllText(cachejsFile, jscript.Value);
+                    new FileInfo(cachejsFile).LastWriteTimeUtc = new FileInfo(coffeescriptFile).LastWriteTimeUtc;
+                }
+                else
+                {
+                    context.Response.Write(jscript.Value);
+                    context.Response.StatusCode = 250;
+                }
             }
-
-            context.Response.ContentType = "text/javascript";
-            context.Response.Write(jscript);
         }
 
         public bool IsReusable
@@ -59,15 +59,26 @@ namespace CoffeeScript
             get { return true; }
         }
 
-        private string GetConfig(string keyName, string defaultValue)
+        internal static string GetCoffeeScript()
         {
-            var result = ConfigurationManager.AppSettings[keyName];
-            return (result != null) ? result : defaultValue;
+            var scriptPath = GetConfig("coffee-script.path", null);
+            return scriptPath != null ? Loader.FromFile(scriptPath) : Loader.Default();
         }
 
-        public bool GetConfig(string keyName, bool defaultValue)
+        internal static string GetConfig(string keyName, string defaultValue)
+        {
+            var result = ConfigurationManager.AppSettings[keyName];
+            return result ?? defaultValue;
+        }
+
+        internal static bool GetConfig(string keyName, bool defaultValue)
         {
             return bool.Parse(GetConfig(keyName, defaultValue.ToString()));
+        }
+
+        internal static int GetConfig(string keyName, int defaultValue)
+        {
+            return int.Parse(GetConfig(keyName, defaultValue.ToString(CultureInfo.InvariantCulture)));
         }
     }
 }
